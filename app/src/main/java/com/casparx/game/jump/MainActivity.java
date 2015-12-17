@@ -2,34 +2,42 @@ package com.casparx.game.jump;
 
 import android.annotation.TargetApi;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
 import android.widget.ImageView;
 
-public class MainActivity extends AppCompatActivity{
+import butterknife.Bind;
+import butterknife.ButterKnife;
 
-    private ImageView jumper;
+public class MainActivity extends AppCompatActivity {
+
+    @Bind(R.id.jumper)
+    ImageView jumper;
     private long time;
     private float mt;
     private int g = 10;
     private int screenWidth;
     private int screenHeight;
 
+    private boolean isDown;
+    private boolean isRunning;
     private static final int JUMP = 0;
     private static final int DOWN = 1;
+
+    private Thread jumpThread;
+    private Thread downThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        jumper = (ImageView) findViewById(R.id.jumper);
+        ButterKnife.bind(this);
         init();
     }
 
@@ -52,7 +60,7 @@ public class MainActivity extends AppCompatActivity{
         if (ev.getAction() == MotionEvent.ACTION_UP) {
             time = ev.getEventTime() - ev.getDownTime();
             mt = 0;
-            jumper.setY(screenHeight-500);
+            jumper.setY(screenHeight - 500);
             jump(time);
         }
 
@@ -60,16 +68,18 @@ public class MainActivity extends AppCompatActivity{
     }
 
     private void jump(long time) {
-        Thread t = new JumpThread();
-        t.start();
+        jumpThread = new JumpThread();
+        downThread = new DownThread();
+        isRunning = true;
+        jumpThread.start();
     }
 
     class JumpThread extends Thread {
         @Override
         public void run() {
-            while (time>0) {
-                time -= g*mt;
-                mt+=1.5f;
+            while (time > 0 && isRunning) {
+                time -= g * mt;
+                mt += 1.5f;
                 Message msg = new Message();
                 msg.what = JUMP;
                 handler.sendMessage(msg);
@@ -80,8 +90,7 @@ public class MainActivity extends AppCompatActivity{
                 }
             }
 
-            Thread t = new DownThread();
-            t.start();
+            downThread.start();
         }
     }
 
@@ -89,9 +98,9 @@ public class MainActivity extends AppCompatActivity{
         @TargetApi(Build.VERSION_CODES.HONEYCOMB)
         @Override
         public void run() {
-            while (jumper.getY()<(screenHeight-500)) {
-                time += g*mt;
-                mt-=1.5f;
+            while (jumper.getY() < (screenHeight - 500)) {
+                time += g * mt;
+                mt -= 1.5f;
                 Message msg = new Message();
                 msg.what = DOWN;
                 handler.sendMessage(msg);
@@ -108,22 +117,24 @@ public class MainActivity extends AppCompatActivity{
         @TargetApi(Build.VERSION_CODES.HONEYCOMB)
         @Override
         public void handleMessage(Message msg) {
-            float temp = time/10>mt ? time/10-mt : time/15;
+            float temp = time / 10 > mt ? time / 10 - mt : time / 15;
             if (msg.what == JUMP) {
                 jumper.setY(jumper.getY() - temp);
-                if (jumper.getY()<0) {
-                    Log.i("handler","over top");
-                } else if (jumper.getY()+jumper.getHeight()<300) {
+                if (jumper.getY() < 0) {
+                    Log.i("handler", "over top");
+                    isRunning = false;
+                    jumpThread.interrupt();
+                } else if (jumper.getY() + jumper.getHeight() < 300) {
 
-                    Log.i("handler","great");
+                    Log.i("handler", "great");
                 }
             } else if (msg.what == DOWN) {
                 jumper.setY(jumper.getY() + temp);
-                if (jumper.getY()<0) {
-                    Log.i("handler","over top");
-                } else if (jumper.getY()+jumper.getHeight()<300) {
+                if (jumper.getY() < 0) {
+                    Log.i("handler", "over top");
+                } else if (jumper.getY() + jumper.getHeight() < 300) {
 
-                    Log.i("handler","great");
+                    Log.i("handler", "great");
                 }
             }
         }
