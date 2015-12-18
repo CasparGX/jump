@@ -1,42 +1,71 @@
 package com.casparx.game.jump;
 
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ImageView;
 
-public class MainActivity extends AppCompatActivity{
+import butterknife.Bind;
+import butterknife.ButterKnife;
 
-    private ImageView jumper;
+
+public class MainActivity extends Activity {
+
+    @Bind(R.id.jumper)
+    ImageView jumper;
+    @Bind(R.id.line)
+    ImageView line;
     private long time;
     private float mt;
     private int g = 15;
     private int screenWidth;
     private int screenHeight;
+    private int nextTop = 500;
 
     private float x;
 
-    private static final int JUMP = 0;
-    private static final int DOWN = 1;
+    private boolean isRunning;
+    private boolean isEnd;
+    private boolean isDown;
+    private int isSuccess;
+
+    private static final int END = 0;
+    private static final int NEXT = 1;
     private static final int FALL = 2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        this.requestWindowFeature(Window.FEATURE_NO_TITLE);//去掉标题栏
+
+        this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);//去掉信息栏
         setContentView(R.layout.activity_main);
+        ButterKnife.bind(this);
 
         jumper = (ImageView) findViewById(R.id.jumper);
         init();
+        initGame();
+    }
+
+    private void initGame() {
+        isDown = false;
+        isRunning = false;
+        isEnd = false;
+        isSuccess = 0;
     }
 
     private void init() {
+
+
         //get screen's width 1/4
         Display display = getWindow().getWindowManager().getDefaultDisplay();
         DisplayMetrics outMetris = new DisplayMetrics();
@@ -48,45 +77,58 @@ public class MainActivity extends AppCompatActivity{
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        float x = ev.getX();
-        float y = ev.getY();
-        //long time;
 
-        if (ev.getAction() == MotionEvent.ACTION_UP) {
+        if (ev.getAction() == MotionEvent.ACTION_UP && !isRunning) {
             time = ev.getEventTime() - ev.getDownTime();
             mt = 0;
-            jumper.setY(screenHeight-500);
-            jumpTest(time);
-            //jump(time);
+            jumper.setY(screenHeight - 500);
+            jump(time);
         }
 
         return super.dispatchTouchEvent(ev);
     }
 
-    private void jumpTest(long time) {
+    private void jump(long time) {
         FallThread fallThread = new FallThread();
+        isRunning = true;
+        nextTop = line.getTop();
+        Log.i("nextTop",nextTop+"");
         fallThread.start();
     }
 
-    private void jump(long time) {
-        Thread t = new JumpThread();
-        t.start();
-    }
-
     class FallThread extends Thread {
-        float tempTime = time/(g/2f);
-        int t = (int) tempTime/g-1;
+        float tempTime = (time / (g / 2f)) * 2f;
+        int t = (int) tempTime / g - 1;
         float s = 0;
+
         @Override
         public void run() {
             //tempTime = time/100;
             //t=0;
-            while(s>0||s==0){
+            while (s > 0 || s == 0) {
+                if (isEnd) {
+                    endGame();
+                    this.interrupt();
+                    break;
+                } else if (isSuccess == 1) {
+                    s -= screenHeight - nextTop - 300;
+                    Log.i("isSuccess", "S:" + s);
+                }
                 t++;
-                x = (tempTime*t - g*t*t/2f)/30f;
-                s+=x;
-                Log.i("FallThread","time:"+tempTime+" s:"+s+" x:"+x+" t:"+t);
-                if (s<0) x -= s;
+                x = (tempTime * t - g * t * t / 2f) / 30f;
+                if (x < 0 || x == 0) isDown = true;
+                else isDown = false;
+                s += x;
+                Log.i("FallThread", "time:" + tempTime + " s:" + s + " x:" + x + " t:" + t);
+                if (s < 0) {
+                    x -= s;
+                    if (isSuccess>0) {
+                        Message msg2 = new Message();
+                        msg2.what = NEXT;
+                        handler.sendMessage(msg2);
+                    }
+                    endGame();
+                }
                 Message msg = new Message();
                 msg.what = FALL;
                 handler.sendMessage(msg);
@@ -99,75 +141,31 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
-    class JumpThread extends Thread {
-        @Override
-        public void run() {
-            while (time>0) {
-                time -= g*mt;
-                mt+=1.5f;
-                Message msg = new Message();
-                msg.what = JUMP;
-                handler.sendMessage(msg);
-                try {
-                    this.sleep(50);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            Thread t = new DownThread();
-            t.start();
-        }
+    private void nextLevel() {
+        nextTop = Math.random()>0.5 ? (int)(nextTop + Math.random()*50) : (int)(nextTop - Math.random()*50);
+        line.setY(nextTop);
     }
 
-    class DownThread extends Thread {
-        @TargetApi(Build.VERSION_CODES.HONEYCOMB)
-        @Override
-        public void run() {
-            while (jumper.getY()<(screenHeight-500)) {
-                time += g*mt;
-                mt-=1.5f;
-                Message msg = new Message();
-                msg.what = DOWN;
-                handler.sendMessage(msg);
-                try {
-                    this.sleep(50);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+    private void endGame() {
+        isSuccess = 0;
+        isRunning = false;
+        isEnd = false;
     }
 
     private Handler handler = new Handler() {
         @TargetApi(Build.VERSION_CODES.HONEYCOMB)
         @Override
         public void handleMessage(Message msg) {
-            float temp = time/10>mt ? time/10-mt : time/15;
-            if (msg.what == JUMP) {
-                jumper.setY(jumper.getY() - temp);
-                if (jumper.getY()<0) {
-                    Log.i("handler","over top");
-                } else if (jumper.getY()+jumper.getHeight()<300) {
-
-                    Log.i("handler","great");
-                }
-            } else if (msg.what == DOWN) {
-                jumper.setY(jumper.getY() + temp);
-                if (jumper.getY()<0) {
-                    Log.i("handler","over top");
-                } else if (jumper.getY()+jumper.getHeight()<300) {
-
-                    Log.i("handler","great");
-                }
-            } else if (msg.what == FALL) {
+            if (msg.what == FALL) {
                 jumper.setY(jumper.getY() - x);
-                if (jumper.getY()<0) {
-                    Log.i("handler","over top");
-                } else if (jumper.getY()+jumper.getHeight()<300) {
-
-                    Log.i("handler","great");
+                if (jumper.getY() < 0) {
+                    isEnd = true;
+                } else if (isDown && (jumper.getY() + jumper.getHeight() < nextTop)) {
+                    isSuccess++;
+                    Log.i("handler", "great");
                 }
+            } else if (msg.what == NEXT) {
+                nextLevel();
             }
         }
     };
