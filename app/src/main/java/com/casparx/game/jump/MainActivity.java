@@ -14,19 +14,21 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
 
+import com.casparx.game.jump.gameview.JumperView;
+
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
 
 public class MainActivity extends Activity {
 
-    @Bind(R.id.jumper)
-    ImageView jumper;
     @Bind(R.id.line)
     ImageView line;
+    @Bind(R.id.jumper)
+    JumperView jumper;
     private long time;
     private float mt;
-    private int g = 15;
+    private int g = 10;
     private int screenWidth;
     private int screenHeight;
     private int nextTop = 500;
@@ -51,7 +53,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
-        jumper = (ImageView) findViewById(R.id.jumper);
+        jumper = (JumperView) findViewById(R.id.jumper);
         init();
         initGame();
     }
@@ -89,11 +91,55 @@ public class MainActivity extends Activity {
     }
 
     private void jump(long time) {
-        FallThread fallThread = new FallThread();
+        FallThread2 fallThread = new FallThread2();
         isRunning = true;
         nextTop = line.getTop();
-        Log.i("nextTop",nextTop+"");
+        Log.i("nextTop", nextTop + "");
         fallThread.start();
+    }
+
+    class FallThread2 extends Thread {
+        float x1 = 0;
+        float x2 = 0;
+        float s = 0;
+        int t = 0;
+        @Override
+        public void run() {
+            while (s>=0) {
+                if (isEnd) {
+                    endGame();
+                    this.interrupt();
+                    break;
+                } else if (isSuccess == 1) {
+                    s -= screenHeight - nextTop - 300;
+                    Log.i("isSuccess", "S:" + s);
+                }
+                t++;
+                x2 = x1;
+                x1 = time*t/8 - g*t*t/2;
+                x = x1-x2;
+                if (x < 0 || x == 0) isDown = true;
+                else isDown = false;
+                s+=x;
+                if (s < 0) {
+                    x -= s;
+                    if (isSuccess > 0) {
+                        Message msg2 = new Message();
+                        msg2.what = NEXT;
+                        handler.sendMessage(msg2);
+                    }
+                    endGame();
+                }
+                Message msg = new Message();
+                msg.what = FALL;
+                handler.sendMessage(msg);
+                try {
+                    this.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     class FallThread extends Thread {
@@ -122,7 +168,7 @@ public class MainActivity extends Activity {
                 Log.i("FallThread", "time:" + tempTime + " s:" + s + " x:" + x + " t:" + t);
                 if (s < 0) {
                     x -= s;
-                    if (isSuccess>0) {
+                    if (isSuccess > 0) {
                         Message msg2 = new Message();
                         msg2.what = NEXT;
                         handler.sendMessage(msg2);
@@ -142,7 +188,7 @@ public class MainActivity extends Activity {
     }
 
     private void nextLevel() {
-        nextTop = Math.random()>0.5 ? (int)(nextTop + Math.random()*50) : (int)(nextTop - Math.random()*50);
+        nextTop = Math.random() > 0.5 ? (int) (nextTop + Math.random() * 50) : (int) (nextTop - Math.random() * 50);
         line.setY(nextTop);
     }
 
@@ -150,6 +196,9 @@ public class MainActivity extends Activity {
         isSuccess = 0;
         isRunning = false;
         isEnd = false;
+        Message msg = new Message();
+        msg.what = END;
+        handler.sendMessage(msg);
     }
 
     private Handler handler = new Handler() {
@@ -166,6 +215,8 @@ public class MainActivity extends Activity {
                 }
             } else if (msg.what == NEXT) {
                 nextLevel();
+            } else if (msg.what == END) {
+                jumper.setY(screenHeight-500);
             }
         }
     };

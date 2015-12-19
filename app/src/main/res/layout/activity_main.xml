@@ -9,7 +9,7 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     android:orientation="vertical">
 
-    <ImageView
+    <com.casparx.game.jump.gameview.JumperView
         android:id="@+id/jumper"
         android:layout_width="100dp"
         android:layout_height="100dp"
