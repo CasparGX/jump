@@ -12,26 +12,34 @@ import android.view.Display;
 import android.view.MotionEvent;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.ImageView;
+import android.widget.TextView;
 
 import com.casparx.game.jump.gameview.JumperView;
+import com.casparx.game.jump.gameview.RailView;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 
 public class MainActivity extends Activity {
 
-    @Bind(R.id.line)
-    ImageView line;
     @Bind(R.id.jumper)
     JumperView jumper;
+    @Bind(R.id.line_start)
+    RailView lineStart;
+    @Bind(R.id.line_next)
+    RailView lineNext;
+    @Bind(R.id.start_game)
+    TextView startGame;
     private long time;
     private float mt;
     private int g = 10;
     private int screenWidth;
     private int screenHeight;
-    private int nextTop = 500;
+    private float nextTop;
+    private float nextRailY;
+    private float railsDistance;
 
     private float x;
 
@@ -43,6 +51,7 @@ public class MainActivity extends Activity {
     private static final int END = 0;
     private static final int NEXT = 1;
     private static final int FALL = 2;
+    private static final int NEXT_RAIL = 3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,9 +62,17 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
-        jumper = (JumperView) findViewById(R.id.jumper);
         init();
         initGame();
+    }
+
+    @OnClick(R.id.start_game)
+    void startGame() {
+        lineStart.setY(screenHeight - lineStart.getDefaultTop());
+        jumper.setY(lineStart.getY() - jumper.getHeight());
+        lineNext.setY(lineNext.getDefaultNextTop());
+        nextTop = lineNext.getY();
+        isRunning = false;
     }
 
     private void initGame() {
@@ -79,12 +96,12 @@ public class MainActivity extends Activity {
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-
         if (ev.getAction() == MotionEvent.ACTION_UP && !isRunning) {
             time = ev.getEventTime() - ev.getDownTime();
             mt = 0;
-            jumper.setY(screenHeight - 500);
+            //jumper.setY(screenHeight - 500);
             jump(time);
+            Log.i("123","==============");
         }
 
         return super.dispatchTouchEvent(ev);
@@ -93,7 +110,7 @@ public class MainActivity extends Activity {
     private void jump(long time) {
         FallThread2 fallThread = new FallThread2();
         isRunning = true;
-        nextTop = line.getTop();
+        nextTop = lineNext.getY();
         Log.i("nextTop", nextTop + "");
         fallThread.start();
     }
@@ -103,36 +120,40 @@ public class MainActivity extends Activity {
         float x2 = 0;
         float s = 0;
         int t = 0;
+
         @Override
         public void run() {
-            while (s>=0) {
+            while (s >= 0) {
+
                 if (isEnd) {
                     endGame();
                     this.interrupt();
                     break;
                 } else if (isSuccess == 1) {
-                    s -= screenHeight - nextTop - 300;
+                    s -= screenHeight - nextTop - lineStart.getDefaultTop();
                     Log.i("isSuccess", "S:" + s);
                 }
+
                 t++;
                 x2 = x1;
-                x1 = time*t/8 - g*t*t/2;
-                x = x1-x2;
+                x1 = time * t / 8 - g * t * t / 2;
+                x = x1 - x2;
                 if (x < 0 || x == 0) isDown = true;
                 else isDown = false;
-                s+=x;
+
+                s += x;
                 if (s < 0) {
                     x -= s;
                     if (isSuccess > 0) {
-                        Message msg2 = new Message();
-                        msg2.what = NEXT;
-                        handler.sendMessage(msg2);
+                        nextRail();
                     }
                     endGame();
+                } else {
+                    Message msg = new Message();
+                    msg.what = FALL;
+                    handler.sendMessage(msg);
                 }
-                Message msg = new Message();
-                msg.what = FALL;
-                handler.sendMessage(msg);
+
                 try {
                     this.sleep(50);
                 } catch (InterruptedException e) {
@@ -140,9 +161,28 @@ public class MainActivity extends Activity {
                 }
             }
         }
+
+        private void nextRail() {
+            nextRailY = lineNext.getY();
+            railsDistance = lineStart.getY()-lineNext.getY();
+            while(nextRailY<screenHeight - lineStart.getDefaultTop()) {
+                nextRailY += 10;
+                Log.i("nextRail",nextRailY+"");
+                if (nextRailY>screenHeight-lineStart.getDefaultTop()) {
+                    nextRailY = lineNext.getY()-lineStart.getDefaultTop();
+                    Log.i("nextRail---",nextRailY+"");
+                }
+                Message msg = new Message();
+                msg.what = NEXT_RAIL;
+                handler.sendMessage(msg);
+            }
+            Message msg2 = new Message();
+            msg2.what = NEXT;
+            handler.sendMessage(msg2);
+        }
     }
 
-    class FallThread extends Thread {
+    /*class FallThread extends Thread {
         float tempTime = (time / (g / 2f)) * 2f;
         int t = (int) tempTime / g - 1;
         float s = 0;
@@ -185,11 +225,13 @@ public class MainActivity extends Activity {
                 }
             }
         }
-    }
+    }*/
 
     private void nextLevel() {
-        nextTop = Math.random() > 0.5 ? (int) (nextTop + Math.random() * 50) : (int) (nextTop - Math.random() * 50);
-        line.setY(nextTop);
+        nextTop = Math.random() > 0.5 ? (int) (lineNext.getDefaultNextTop() + Math.random() * 50) : (int) (lineNext.getDefaultNextTop() - Math.random() * 50);
+        lineStart.setY(screenHeight - lineStart.getDefaultTop());
+        lineNext.setY(nextTop);
+        endGame();
     }
 
     private void endGame() {
@@ -211,12 +253,16 @@ public class MainActivity extends Activity {
                     isEnd = true;
                 } else if (isDown && (jumper.getY() + jumper.getHeight() < nextTop)) {
                     isSuccess++;
-                    Log.i("handler", "great");
+                    Log.i("handler", "great" + nextTop + " " + lineNext.getY());
                 }
             } else if (msg.what == NEXT) {
                 nextLevel();
             } else if (msg.what == END) {
-                jumper.setY(screenHeight-500);
+                jumper.setY(screenHeight - lineStart.getY());
+            } else if (msg.what == NEXT_RAIL) {
+                lineNext.setY(nextRailY);
+                lineStart.setY(nextRailY+railsDistance);
+                jumper.setY(lineNext.getY()-jumper.getHeight());
             }
         }
     };
