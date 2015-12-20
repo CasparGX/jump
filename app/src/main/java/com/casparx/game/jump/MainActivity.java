@@ -10,6 +10,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.TextView;
@@ -32,6 +33,8 @@ public class MainActivity extends Activity {
     RailView lineNext;
     @Bind(R.id.start_game)
     TextView startGame;
+    @Bind(R.id.score)
+    TextView tvScore;
     private long time;
     private float mt;
     private int g = 10;
@@ -47,6 +50,8 @@ public class MainActivity extends Activity {
     private boolean isEnd;
     private boolean isDown;
     private int isSuccess;
+
+    private int score;
 
     private static final int END = 0;
     private static final int NEXT = 1;
@@ -73,13 +78,16 @@ public class MainActivity extends Activity {
         lineNext.setY(lineNext.getDefaultNextTop());
         nextTop = lineNext.getY();
         isRunning = false;
+        startGame.setVisibility(View.GONE);
     }
 
     private void initGame() {
         isDown = false;
-        isRunning = false;
+        isRunning = true;
         isEnd = false;
         isSuccess = 0;
+        score = 0;
+        startGame.setVisibility(View.VISIBLE);
     }
 
     private void init() {
@@ -98,10 +106,9 @@ public class MainActivity extends Activity {
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (ev.getAction() == MotionEvent.ACTION_UP && !isRunning) {
             time = ev.getEventTime() - ev.getDownTime();
-            mt = 0;
             //jumper.setY(screenHeight - 500);
             jump(time);
-            Log.i("123","==============");
+            Log.i("123", "==============");
         }
 
         return super.dispatchTouchEvent(ev);
@@ -118,7 +125,7 @@ public class MainActivity extends Activity {
     class FallThread2 extends Thread {
         float x1 = 0;
         float x2 = 0;
-        float s = 0;
+        float s = lineStart.getDefaultTop();
         int t = 0;
 
         @Override
@@ -130,7 +137,7 @@ public class MainActivity extends Activity {
                     this.interrupt();
                     break;
                 } else if (isSuccess == 1) {
-                    s -= screenHeight - nextTop - lineStart.getDefaultTop();
+                    s -= screenHeight - nextTop /*- lineStart.getDefaultTop()*2*/;
                     Log.i("isSuccess", "S:" + s);
                 }
 
@@ -163,18 +170,25 @@ public class MainActivity extends Activity {
         }
 
         private void nextRail() {
+            Log.i("debug", "nextRail");
             nextRailY = lineNext.getY();
-            railsDistance = lineStart.getY()-lineNext.getY();
-            while(nextRailY<screenHeight - lineStart.getDefaultTop()) {
-                nextRailY += 10;
-                Log.i("nextRail",nextRailY+"");
-                if (nextRailY>screenHeight-lineStart.getDefaultTop()) {
-                    nextRailY = lineNext.getY()-lineStart.getDefaultTop();
-                    Log.i("nextRail---",nextRailY+"");
+            railsDistance = lineStart.getY() - lineNext.getY();
+            while (nextRailY < screenHeight - lineStart.getDefaultTop()) {
+                nextRailY += 20;
+                Log.i("nextRail", nextRailY + "");
+                if (nextRailY > screenHeight - lineStart.getDefaultTop()) {
+                    nextRailY = screenHeight - lineStart.getDefaultTop();
+                    Log.i("nextRail---", nextRailY + "");
                 }
                 Message msg = new Message();
                 msg.what = NEXT_RAIL;
                 handler.sendMessage(msg);
+
+                try {
+                    this.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
             Message msg2 = new Message();
             msg2.what = NEXT;
@@ -228,19 +242,25 @@ public class MainActivity extends Activity {
     }*/
 
     private void nextLevel() {
+        Log.i("debug", "nextLevel");
         nextTop = Math.random() > 0.5 ? (int) (lineNext.getDefaultNextTop() + Math.random() * 50) : (int) (lineNext.getDefaultNextTop() - Math.random() * 50);
         lineStart.setY(screenHeight - lineStart.getDefaultTop());
         lineNext.setY(nextTop);
+        score++;
         endGame();
     }
 
     private void endGame() {
+        Log.i("debug", "endGame");
         isSuccess = 0;
         isRunning = false;
+        if (isEnd) {
+        } else {
+            Message msg = new Message();
+            msg.what = END;
+            handler.sendMessage(msg);
+        }
         isEnd = false;
-        Message msg = new Message();
-        msg.what = END;
-        handler.sendMessage(msg);
     }
 
     private Handler handler = new Handler() {
@@ -250,6 +270,10 @@ public class MainActivity extends Activity {
             if (msg.what == FALL) {
                 jumper.setY(jumper.getY() - x);
                 if (jumper.getY() < 0) {
+                    initGame();
+                    isEnd = true;
+                } else if (jumper.getY() >= screenHeight - jumper.getHeight() - lineStart.getDefaultTop()) {
+                    initGame();
                     isEnd = true;
                 } else if (isDown && (jumper.getY() + jumper.getHeight() < nextTop)) {
                     isSuccess++;
@@ -258,11 +282,12 @@ public class MainActivity extends Activity {
             } else if (msg.what == NEXT) {
                 nextLevel();
             } else if (msg.what == END) {
-                jumper.setY(screenHeight - lineStart.getY());
+                tvScore.setText(score+"");
+                jumper.setY(screenHeight - lineStart.getDefaultTop() - jumper.getHeight());
             } else if (msg.what == NEXT_RAIL) {
                 lineNext.setY(nextRailY);
-                lineStart.setY(nextRailY+railsDistance);
-                jumper.setY(lineNext.getY()-jumper.getHeight());
+                lineStart.setY(nextRailY + railsDistance);
+                jumper.setY(lineNext.getY() - jumper.getHeight());
             }
         }
     };

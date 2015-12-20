@@ -5,6 +5,25 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="22sp"
+            android:text="score:"/>
+        <TextView
+            android:id="@+id/score"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="22sp"
+            android:text="0"/>
+
+    </LinearLayout>
+
     <com.casparx.game.jump.gameview.JumperView
         android:id="@+id/jumper"
         android:layout_width="100dp"
@@ -33,5 +52,6 @@
         android:text="Start Game"
         android:textSize="24sp"
         android:layout_gravity="center_horizontal" />
+
 
 </LinearLayout>
